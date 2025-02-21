@@ -6,6 +6,7 @@ import base64
 import os
 import argparse
 import re
+import time
 
 class NutanixAPIError(Exception):
     """Custom exception for Nutanix API errors"""
@@ -110,8 +111,55 @@ class NutanixAPI:
         """
         return self.make_request('PUT', f'vms/{vm_uuid}', vm_spec)
 
+    def get_task_status(self, task_uuid):
+        """Get the status of a task
+        
+        Args:
+            task_uuid: UUID of the task to check
+            
+        Returns:
+            Task status details
+        """
+        return self.make_request('GET', f'tasks/{task_uuid}')
+
+    def wait_for_task(self, task_uuid, timeout_secs=300, interval_secs=5):
+        """Wait for a task to complete
+        
+        Args:
+            task_uuid: UUID of the task to monitor
+            timeout_secs: Maximum time to wait in seconds (default: 300)
+            interval_secs: Time between status checks in seconds (default: 5)
+            
+        Returns:
+            Final task status
+            
+        Raises:
+            NutanixAPIError: If task fails or times out
+        """
+        start_time = time.time()
+        
+        while True:
+            task_status = self.get_task_status(task_uuid)
+            current_status = task_status.get('status', {})
+            state = current_status.get('state', '')
+            
+            # Check if task completed
+            if state == 'SUCCEEDED':
+                return task_status
+            elif state == 'FAILED':
+                error_detail = current_status.get('error_detail', 'No error details available')
+                raise NutanixAPIError(f'Task failed: {error_detail}')
+            
+            # Check if we've exceeded timeout
+            if time.time() - start_time > timeout_secs:
+                raise NutanixAPIError(f'Task monitoring timed out after {timeout_secs} seconds')
+            
+            # Wait before checking again
+            time.sleep(interval_secs)
+
 def find_vm_by_name(nutanix, vm_name):
-    """Find VM by name (case insensitive)
+    """
+    Find VM by name (case-insensitive)
     
     Args:
         nutanix: NutanixAPI instance
@@ -125,8 +173,9 @@ def find_vm_by_name(nutanix, vm_name):
     pattern = re.compile(re.escape(vm_name), re.IGNORECASE)
     for vm in vms:
         current_name = vm.get('spec', {}).get('name', '')
+        current_uuid = vm.get('metadata', {}).get('uuid', '')
         if pattern.search(current_name):
-            return vm['metadata']['uuid'], current_name
+            return current_uuid, current_name
     
     return None, None
 
@@ -136,20 +185,29 @@ def update_vsensor(nutanix, vm_uuid):
     Args:
         nutanix: NutanixAPI instance
         vm_uuid: UUID of vSensor VM to update
+        
+    Returns:
+        Task status after completion
     """
-    # Get current VM spec
+    # Step 8.3 - Get current VM spec
     vm_details = nutanix.get_vm_details(vm_uuid)
     
     # Add network function provider category
     if 'categories' not in vm_details['metadata']:
         vm_details['metadata']['categories'] = {}
     
-    # Use static provider value
+    # Step 8.4 - Add category provider value
     provider_value = 'vectra_ai'
     vm_details['metadata']['categories']['network_function_provider'] = provider_value
     
     # Update VM with new spec
     result = nutanix.update_vm(vm_uuid, vm_details)
+    
+    # Get task UUID and monitor until completion
+    if result.get('status', {}).get('state') == 'PENDING':
+        task_uuid = result['status']['execution_context']['task_uuid']
+        return nutanix.wait_for_task(task_uuid)
+    
     return result
 
 def main(prism_central_ip, prism_central_username, prism_central_password, vm_name):
@@ -157,7 +215,7 @@ def main(prism_central_ip, prism_central_username, prism_central_password, vm_na
         # Initialize API client
         nutanix = NutanixAPI(prism_central_ip, prism_central_username, prism_central_password)
 
-        # Find VM by name
+        # Step 8.2 - Find VM by name and return UUID
         print(f'Looking for VM with name: {vm_name}')
         vm_uuid, found_name = find_vm_by_name(nutanix, vm_name)
         if not vm_uuid:
@@ -167,14 +225,9 @@ def main(prism_central_ip, prism_central_username, prism_central_password, vm_na
 
         # Update vSensor VM
         print('Updating vSensor VM with provider value vectra_ai...')
-        result = update_vsensor(nutanix, vm_uuid)
+        update_vsensor(nutanix, vm_uuid)
         
-        # Check result
-        if result.get('status', {}).get('state') == 'PENDING':
-            task_uuid = result['status']['execution_context']['task_uuid']
-            print(f'Update initiated successfully. Task UUID: {task_uuid}')
-        else:
-            print('Update may not have been successful. Please verify the VM configuration.')
+        print('Update completed successfully')
 
     except NutanixAPIError as e:
         print(f'Error: {e}')
