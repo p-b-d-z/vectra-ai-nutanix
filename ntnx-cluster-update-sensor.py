@@ -144,7 +144,7 @@ class NutanixAPI:
             state = current_status.get('state', '')
             
             # Check if task completed
-            if state == 'SUCCEEDED':
+            if state == 'SUCCESS':
                 return task_status
             elif state == 'FAILED':
                 error_detail = current_status.get('error_detail', 'No error details available')
