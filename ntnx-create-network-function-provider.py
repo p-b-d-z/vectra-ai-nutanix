@@ -42,24 +42,23 @@ class NutanixAPI:
         Raises:
             NutanixAPIError: If API request fails
         """
+        # Setup connection
+        conn = http.client.HTTPSConnection(
+            self.pc_ip,
+            port=9440,
+            context=self.ssl_context
+        )
         try:
-            conn = http.client.HTTPSConnection(
-                self.pc_ip,
-                port=9440,
-                context=self.ssl_context
-            )
-            
+            # Setup headers
             headers = {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
             }
-
             # Add basic auth header
             auth_str = f"{self.username}:{self.password}"
             auth_bytes = auth_str.encode('ascii')
             base64_auth = base64.b64encode(auth_bytes).decode('ascii')
             headers['Authorization'] = f'Basic {base64_auth}'
-
             if data:
                 body = json.dumps(data)
             else:
@@ -67,7 +66,6 @@ class NutanixAPI:
 
             conn.request(method, f'/api/nutanix/v3/{endpoint}', body, headers)
             response = conn.getresponse()
-            
             if not (200 <= response.status < 300):
                 raise NutanixAPIError(f"API request failed with status {response.status}: {response.read().decode()}")
                 
@@ -95,13 +93,14 @@ class NutanixAPI:
         )
 
     def verify_provider_categories(self):
-        """Get list of network function provider categories"""
+        """Get list of network function provider categories and verify values"""
         response = self.make_request(
             'POST',
             'categories/network_function_provider/list',
             {'kind': 'category'}
         )
-        return response.get('entities', [])
+        entities = response.get('entities', [])
+        return entities
 
     def get_clusters(self):
         """Get list of clusters"""
@@ -166,22 +165,31 @@ def main(prism_central_ip, prism_central_username, prism_central_password):
         # Initialize API client
         nutanix = NutanixAPI(prism_central_ip, prism_central_username, prism_central_password)
 
-        # Step 1: Create network function provider category
+        # Step 5.1: Create network function provider category
         nutanix.create_network_function_provider()
         print('Created network function provider category')
 
-        # Step 2: Assign value to the category
+        # Step 5.2: Assign value to the category
         nutanix.assign_provider_value(provider_value)
         print(f'Assigned value {provider_value} to network function provider')
 
-        # Step 3: Verify category and value
+        # Step 5.3: Verify category and value
         categories = nutanix.verify_provider_categories()
+        provider_exists = any(entity.get('value') == provider_value for entity in categories)
+        
+        if not provider_exists:
+            raise NutanixAPIError(f"Provider value '{provider_value}' was not found in categories after creation")
+        
         print('Verified provider categories:', categories)
+        print(f'Successfully verified that provider value "{provider_value}" exists')
 
-        # Step 4: Get cluster information
+        # Step 6: Get cluster information
         clusters = nutanix.get_clusters()
         
-        # Step 5: Create network function chain for each cluster
+        # Step 7: Create network function chain for each cluster
+        if not clusters:
+            raise NutanixAPIError("No clusters found")
+        
         for cluster in clusters:
             cluster_name = cluster['spec']['name']
             cluster_uuid = cluster['metadata']['uuid']

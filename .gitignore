@@ -1,6 +1,6 @@
-.env
-.idea/*
-.vscode/*
-.venv*
 *.pyc
 .cursor*
+.env*
+.idea*
+.vscode*
+venv*
