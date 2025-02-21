@@ -50,5 +50,5 @@ Found VM: vSensor (UUID: bf380ff7-4c3f-40b6-ad43-5a799b5d8cd8)
 
 After testing, remove the argument and run again.
 ```console
-python3 ntnx-cluster-update-sensor.py
+python3 ntnx-cluster-update-sensor.py --vm-name vSensor
 ```
