@@ -1,8 +1,10 @@
+#!/usr/bin/env python3
 import http.client
 import json
 import ssl
 import base64
 import os
+import argparse
 
 class NutanixAPIError(Exception):
     """Custom exception for Nutanix API errors"""
@@ -165,11 +167,11 @@ def main(prism_central_ip, prism_central_username, prism_central_password):
         nutanix = NutanixAPI(prism_central_ip, prism_central_username, prism_central_password)
 
         # Step 1: Create network function provider category
-        provider = nutanix.create_network_function_provider()
+        nutanix.create_network_function_provider()
         print('Created network function provider category')
 
         # Step 2: Assign value to the category
-        provider_value = nutanix.assign_provider_value(provider_value)
+        nutanix.assign_provider_value(provider_value)
         print(f'Assigned value {provider_value} to network function provider')
 
         # Step 3: Verify category and value
@@ -202,8 +204,33 @@ def main(prism_central_ip, prism_central_username, prism_central_password):
     except Exception as e:
         print(f'Unexpected error: {e}')
 
+
+def test(prism_central_ip, prism_central_username, prism_central_password):
+    try:
+        # Initialize API client
+        nutanix = NutanixAPI(prism_central_ip, prism_central_username, prism_central_password)
+        clusters = nutanix.get_clusters()
+        for cluster in clusters:
+            cluster_name = cluster['spec']['name']
+            cluster_uuid = cluster['metadata']['uuid']
+            print(f'Located cluster: {cluster_name} ({cluster_uuid})')
+
+    except NutanixAPIError as e:
+        print(f'Error: {e}')
+    except Exception as e:
+        print(f'Unexpected error: {e}')
+
+
 if __name__ == '__main__':
-    PC_IP = os.environ.get('PC_IP', 'prism')
-    USERNAME = os.environ.get('PC_USERNAME', 'admin')
-    PASSWORD = os.environ.get('PC_PASSWORD', 'Nutanix/123')
-    main(PC_IP, USERNAME, PASSWORD)
+    parser = argparse.ArgumentParser(description='Nutanix Network Function Provider Management')
+    parser.add_argument('--test', action='store_true', help='Run in test mode')
+    args = parser.parse_args()
+
+    PC_IP = os.getenv('PC_IP', 'prism')
+    USERNAME = os.getenv('PC_USERNAME', 'admin')
+    PASSWORD = os.getenv('PC_PASSWORD', 'Nutanix/123')
+    print(f'Connecting to {PC_IP} as {USERNAME}...')
+    if args.test:
+        test(PC_IP, USERNAME, PASSWORD)
+    else:
+        main(PC_IP, USERNAME, PASSWORD)
