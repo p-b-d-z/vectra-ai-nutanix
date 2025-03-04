@@ -1,9 +1,11 @@
 # Vectra AI
 ## Nutanix Sensor Install
 
-`ntnx-create-network-function-provider.py` will perform step 5 through 7 of the Vectra AI vSensor installation guide.
-`ntnx-cluster-update-sensor.py` will perform step 8 of the Vectra AI vSensor installation.
-`ntnx-cluster-update-network.py` will perform step 9 of the Vectra AI vSensor installation.
+`ntnx-create-network-function-provider.py` will perform step 5 through 7 of the Vectra AI vSensor installation guide. This script will install the Vectra tap on every cluster attached to Prism. You only need to run this command once.
+
+`ntnx-cluster-update-sensor.py` will perform step 8 of the Vectra AI vSensor installation. This step assigns the provider value category to the VM.
+
+`ntnx-cluster-update-network.py` will perform step 9 of the Vectra AI vSensor installation. This step attaches a given VLAN ID to the Vectra network chain.
 
 ### Usage - Steps 5-7
 Run the first Python script. If you wish to test connectivity first, use the optional `--test` argument. Both scripts support this argument.
