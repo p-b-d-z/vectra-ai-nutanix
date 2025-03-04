@@ -52,7 +52,12 @@ Created network function chain: dc8c8efd-6939-430c-afbc-d42e002dfe1c
 ```
 
 ### Intermission
-Perform step 8.1 to update vSensor settings using `acli`.
+Perform step 8.1 on a CVM to update each vSensor settings using `acli`.
+```bash
+<Acropolis> vm.update vSensor1 agent_vm=true extra_flags=is_system_vm=true
+<Acropolis> vm.nic_create vSensor1 type=kNetworkFunctionNic network_function_nic_type=kTap
+<Acropolis> vm.affinity_set vSensor1 host_list=10.0.0.1
+```
 
 ### Usage - Step 8
 
