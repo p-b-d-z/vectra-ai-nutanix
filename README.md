@@ -3,6 +3,7 @@
 
 `ntnx-create-network-function-provider.py` will perform step 5 through 7 of the Vectra AI vSensor installation guide.
 `ntnx-cluster-update-sensor.py` will perform step 8 of the Vectra AI vSensor installation.
+`ntnx-cluster-update-network.py` will perform step 9 of the Vectra AI vSensor installation.
 
 ### Usage - Steps 5-7
 Run the first Python script. If you wish to test connectivity first, use the optional `--test` argument. Both scripts support this argument.
