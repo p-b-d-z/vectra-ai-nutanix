@@ -90,13 +90,22 @@ class NutanixAPI:
         """
         return self.make_request('GET', f'vms/{vm_uuid}')
 
-    def list_vms(self):
-        """List all VMs
+    def list_vms(self, offset=0, length=500):
+        """List VMs with pagination support
         
+        Args:
+            offset: Starting offset for results (default: 0)
+            length: Maximum number of results to return (default: 500)
+            
         Returns:
             List of VMs
         """
-        response = self.make_request('POST', 'vms/list', {'kind': 'vm'})
+        params = {
+            'kind': 'vm',
+            'offset': offset,
+            'length': length
+        }
+        response = self.make_request('POST', 'vms/list', params)
         return response.get('entities', [])
     
     def update_vm(self, vm_uuid, vm_spec):
@@ -140,14 +149,13 @@ class NutanixAPI:
         
         while True:
             task_status = self.get_task_status(task_uuid)
-            current_status = task_status.get('status', {})
-            state = current_status.get('state', '')
+            state = task_status.get('status', '')
             
             # Check if task completed
-            if state == 'SUCCESS':
+            if state == 'SUCCEEDED':
                 return task_status
             elif state == 'FAILED':
-                error_detail = current_status.get('error_detail', 'No error details available')
+                error_detail = task_status.get('error_detail', 'No error details available')
                 raise NutanixAPIError(f'Task failed: {error_detail}')
             
             # Check if we've exceeded timeout
@@ -191,24 +199,27 @@ def update_vsensor(nutanix, vm_uuid):
     """
     # Step 8.3 - Get current VM spec
     vm_details = nutanix.get_vm_details(vm_uuid)
-    
-    # Add network function provider category
-    if 'categories' not in vm_details['metadata']:
-        vm_details['metadata']['categories'] = {}
-    
-    # Step 8.4 - Add category provider value
-    provider_value = 'vectra_ai'
-    vm_details['metadata']['categories']['network_function_provider'] = provider_value
-    
-    # Update VM with new spec
-    result = nutanix.update_vm(vm_uuid, vm_details)
-    
-    # Get task UUID and monitor until completion
-    if result.get('status', {}).get('state') == 'PENDING':
-        task_uuid = result['status']['execution_context']['task_uuid']
-        return nutanix.wait_for_task(task_uuid)
-    
-    return result
+    # Create a minimal update spec with just metadata
+    update_spec = {
+        'metadata': vm_details.get('metadata', {}),
+        'spec': vm_details.get('spec', {})
+    }
+    if 'network_function_provider' not in update_spec['metadata']['categories']:
+        # Add network function provider category
+        update_spec['metadata']['categories'] = {
+            'network_function_provider': 'vectra_ai'
+        }
+        # Update VM with new spec
+        result = nutanix.update_vm(vm_uuid, update_spec)
+        # Get task UUID and monitor until completion
+        if result.get('status', {}).get('state') == 'PENDING':
+            task_uuid = result['status']['execution_context']['task_uuid']
+            return nutanix.wait_for_task(task_uuid)
+        
+        return result
+    else:
+        print(f'Network function provider category already exists for VM {vm_uuid}')
+        return None
 
 def main(prism_central_ip, prism_central_username, prism_central_password, vm_name):
     try:
