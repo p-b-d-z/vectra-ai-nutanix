@@ -156,7 +156,9 @@ class NutanixAPI:
         )
         return response.get('entities', [])
 
-def main(prism_central_ip, prism_central_username, prism_central_password):
+def main(prism_central_ip, prism_central_username, prism_central_password, target_cluster_name=None):
+    # Skip Prism Central when targeting a specific cluster
+    is_targeting = False if target_cluster_name is None else True
     # Configuration
     provider_value = 'vectra_ai'
     chain_name = 'vectra_tap'
@@ -164,21 +166,25 @@ def main(prism_central_ip, prism_central_username, prism_central_password):
     try:
         # Initialize API client
         nutanix = NutanixAPI(prism_central_ip, prism_central_username, prism_central_password)
-
-        # Step 5.1: Create network function provider category
-        nutanix.create_network_function_provider()
-        print('Created network function provider category')
-
-        # Step 5.2: Assign value to the category
-        nutanix.assign_provider_value(provider_value)
-        print(f'Assigned value {provider_value} to network function provider')
-
-        # Step 5.3: Verify category and value
         categories = nutanix.verify_provider_categories()
+        provider_check = any(entity.get('value') == provider_value for entity in categories)
+
+        if not provider_check:
+            # Step 5.1: Create network function provider category
+            nutanix.create_network_function_provider()
+            print('Created network function provider category')
+
+            # Step 5.2: Assign value to the category
+            nutanix.assign_provider_value(provider_value)
+            print(f'Assigned value {provider_value} to network function provider')
+
+            # Step 5.3: Verify category and value
+            categories = nutanix.verify_provider_categories()
+
         provider_exists = any(entity.get('value') == provider_value for entity in categories)
         
         if not provider_exists:
-            raise NutanixAPIError(f"Provider value '{provider_value}' was not found in categories after creation")
+            raise NutanixAPIError(f'Provider value was not found in categories: {provider_value}')
         
         print('Verified provider categories:', categories)
         print(f'Successfully verified that provider value "{provider_value}" exists')
@@ -192,6 +198,10 @@ def main(prism_central_ip, prism_central_username, prism_central_password):
         
         for cluster in clusters:
             cluster_name = cluster['spec']['name']
+            if is_targeting:
+                if cluster_name != target_cluster_name:
+                    continue
+
             cluster_uuid = cluster['metadata']['uuid']
             print(f'Creating chain for cluster: {cluster_name} ({cluster_uuid})')
             
@@ -201,7 +211,9 @@ def main(prism_central_ip, prism_central_username, prism_central_password):
                 cluster_name,
                 cluster_uuid
             )
-            print(f'Created network function chain: {chain["metadata"]["uuid"]}')
+
+            chain_uuid = chain['metadata']['uuid']
+            print(f'Created network function chain: {chain_uuid}')
 
         # Step 6: Verify chain creation
         chains = nutanix.verify_network_function_chains()
@@ -213,13 +225,18 @@ def main(prism_central_ip, prism_central_username, prism_central_password):
         print(f'Unexpected error: {e}')
 
 
-def test(prism_central_ip, prism_central_username, prism_central_password):
+def test(prism_central_ip, prism_central_username, prism_central_password, target_cluster_name=None):
+    is_targeting = False if target_cluster_name is None else True
     try:
         # Initialize API client
         nutanix = NutanixAPI(prism_central_ip, prism_central_username, prism_central_password)
         clusters = nutanix.get_clusters()
         for cluster in clusters:
             cluster_name = cluster['spec']['name']
+            if is_targeting:
+                if cluster_name != target_cluster_name:
+                    continue
+
             cluster_uuid = cluster['metadata']['uuid']
             print(f'Located cluster: {cluster_name} ({cluster_uuid})')
 
@@ -232,13 +249,15 @@ def test(prism_central_ip, prism_central_username, prism_central_password):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Nutanix Network Function Provider Management')
     parser.add_argument('--test', action='store_true', help='Run in test mode')
+    parser.add_argument('--cluster', required=False, help='Name of cluster to target')
     args = parser.parse_args()
 
     PC_IP = os.getenv('PC_IP', 'prism')
     USERNAME = os.getenv('PC_USERNAME', 'admin')
     PASSWORD = os.getenv('PC_PASSWORD', 'Nutanix/123')
     print(f'Connecting to {PC_IP} as {USERNAME}...')
+    CLUSTER = args.cluster if args.cluster else None
     if args.test:
-        test(PC_IP, USERNAME, PASSWORD)
+        test(PC_IP, USERNAME, PASSWORD, CLUSTER)
     else:
-        main(PC_IP, USERNAME, PASSWORD)
+        main(PC_IP, USERNAME, PASSWORD, CLUSTER)
