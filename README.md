@@ -53,6 +53,19 @@ Creating chain for cluster: prism (a288bd93-db1d-4314-861e-524a750c6be4)
 Created network function chain: dc8c8efd-6939-430c-afbc-d42e002dfe1c
 ```
 
+If you are targeting a new cluster, in an existing environment use the `--cluster` attribute and specify the cluster name.
+```console
+$ python3 ntnx-create-network-function-provider.py --cluster prod
+
+Connecting to prism as admin...
+Created network function provider category
+Assigned value vectra_ai to network function provider
+Verified provider categories: [{'value': 'vectra_ai', 'description': '', 'system_defined': False}]
+Successfully verified that provider value "vectra_ai" exists
+Creating chain for cluster: prod (000583ae-b278-3412-224a-6805ca999194)
+Created network function chain: 1effa8be-cf3e-4671-9302-88c8dd2fcb14
+```
+
 ### Intermission
 Perform step 8.1 on a CVM to update each vSensor settings using `acli`.
 ```bash
@@ -97,7 +110,7 @@ Update completed successfully
 
 ### Usage - Step 9
 
-Run the next command. Use `--test` to validate the scrript can locate the chain and networks to tap.
+Run the next command. Use `--test` to validate the script can locate the chain and networks to tap.
 ```console
 $ python3 ntnx-cluster-update-network.py --vlan-id 100 --test
 
@@ -121,7 +134,7 @@ Network: Servers
   Matching chain UUID: c0c47ccb-3799-440c-a3f4-1cefe8d5c802
 ```
 
-After testing, remove the argument and run again.
+After testing, remove the argument and run again. Clusters with a network chain reference already configured will be skipped.
 ```console
 python3 ntnx-cluster-update-network.py --vlan-id 100
 
